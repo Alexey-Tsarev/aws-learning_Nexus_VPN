@@ -1,0 +1,92 @@
+- name: Take files list at OpenVPN volume directory (1)
+  find:
+    paths: "{{ openvpn_root }}"
+    patterns: "*"
+  register: ovpn
+
+
+- block:
+  - name: Get EC2 facts
+    action: ec2_facts
+
+  - name: Get vpc_ipv4_cidr_block
+    set_fact:
+      vpc_ipv4_cidr_block: "{{ hostvars[inventory_hostname]['ansible_ec2_network_interfaces_macs_' + ansible_ec2_mac.replace(':', '_') + '_vpc_ipv4_cidr_block'] }}"
+
+  - name: Get vpc_ipv4_address
+    shell: set -o pipefail && echo "{{ vpc_ipv4_cidr_block }}" | awk -F "/" '{print $1}'
+    register: vpc_ipv4_address
+    changed_when: false
+
+  - name: Get vpc_ipv4_netmask
+    shell: set -o pipefail && ipcalc --netmask "{{ vpc_ipv4_cidr_block }}" | awk -F "=" '{print $2}'
+    register: vpc_ipv4_netmask
+    changed_when: false
+
+  - name: Get instance's DNS IP
+    shell: set -o pipefail && nslookup google.com | grep Server | awk '{print $2}'
+    register: dns_ip
+    changed_when: false
+
+  - name: Run OpenVPN in Docker (ovpn_genconfig parameter)
+    docker_container:
+      name: openvpn
+      image: kylemanna/openvpn
+      state: started
+      network_mode: host
+      privileged: yes
+      volumes:
+        - "{{ openvpn_root }}:/etc/openvpn"
+      command: ovpn_genconfig -u "tcp://{{ ansible_ec2_public_ipv4 }}" -d -p "route {{ vpc_ipv4_address.stdout }} {{ vpc_ipv4_netmask.stdout }}" -n "{{ dns_ip.stdout }}"
+
+  - name: Wait until the openvpn container running (ovpn_genconfig parameter)
+    shell: "docker inspect -f '{{ '{{' }} .State.Running {{ '}}' }}' openvpn"
+    register: inspect
+    until: inspect.stdout != "true"
+    retries: 10
+    delay: 1
+
+  - name: Run OpenVPN in Docker (ovpn_initpki parameter)
+    docker_container:
+      name: openvpn
+      image: kylemanna/openvpn
+      state: started
+      network_mode: host
+      privileged: yes
+      volumes:
+        - "{{ openvpn_root }}:/etc/openvpn"
+      env: "{{ open_vpn_ca }}"
+      command: ovpn_initpki nopass
+
+  - name: Wait until the openvpn container running (ovpn_initpki)
+    shell: "docker inspect -f '{{ '{{' }} .State.Running {{ '}}' }}' openvpn"
+    register: inspect
+    until: inspect.stdout != "true"
+    retries: 60
+    delay: 5
+  when: ovpn.matched is defined and ovpn.matched == 0
+
+
+- name: Take files list at OpenVPN volume directory (2)
+  find:
+    paths: "{{ openvpn_root }}"
+    patterns: "*"
+  register: ovpn
+
+
+- name: Run OpenVPN in Docker
+  docker_container:
+    name: openvpn
+    image: kylemanna/openvpn
+    state: started
+    network_mode: host
+    privileged: yes
+    restart: yes
+    volumes:
+      - "{{ openvpn_root }}:/etc/openvpn"
+    ports:
+      - "1194:1194"
+      - "1194:1194/udp"
+    capabilities:
+      - "NET_ADMIN"
+  when: ovpn.matched is defined and ovpn.matched != 0

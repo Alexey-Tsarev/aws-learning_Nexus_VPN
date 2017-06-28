@@ -1,0 +1,17 @@
+- name: Create volume directory for Nexus
+  file:
+    path: "{{ nexus_root }}"
+    state: directory
+    mode: 0777
+
+
+- name: Run Nexus in Docker
+  docker_container:
+    name: nexus
+    image: sonatype/nexus:oss
+    state: started
+    restart: yes
+    volumes:
+      - "{{ nexus_root }}:/sonatype-work"
+    ports:
+     - "80:8081"

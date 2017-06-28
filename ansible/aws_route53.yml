@@ -1,0 +1,4 @@
+- hosts: all
+
+  roles:
+    - aws_route53

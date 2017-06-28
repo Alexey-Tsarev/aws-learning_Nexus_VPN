@@ -1,0 +1,2 @@
+aws_efs_name: "efs"
+aws_efs_mount_dir: "/mnt/efs"

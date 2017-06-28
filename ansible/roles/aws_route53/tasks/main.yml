@@ -1,0 +1,10 @@
+- name: Change IN A record
+  route53:
+    command: create
+    overwrite: yes
+    private_zone: yes
+    zone: "{{ aws_route53_domain }}"
+    record: "{{ aws_route53_domain }}"
+    type: A
+    ttl: 60
+    value: "{{ ansible_ec2_local_ipv4 }}"

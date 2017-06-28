@@ -1,0 +1,30 @@
+- name: Get EFS facts
+  efs_facts:
+    region: "{{ ansible_ec2_placement_region }}"
+    tags:
+        Name: "{{ aws_efs_name }}"
+  register: efs_facts
+
+
+- name: Get subnet_id of this instance
+  set_fact:
+    instance_subnet_id: "{{ hostvars[inventory_hostname]['ansible_ec2_network_interfaces_macs_' + ansible_ec2_mac.replace(':', '_') + '_subnet_id'] }}"
+
+
+- name: Set query variable
+  set_fact:
+    query: "ansible_facts.efs[*].mount_targets[?subnet_id=='{{ instance_subnet_id }}'].ip_address"
+
+
+- name: Set EFS IP address
+  set_fact:
+    efs_ip: "{{ efs_facts | json_query(query) | ipaddr }}"
+
+
+- name: Mount EFS
+  mount:
+    path: "{{ aws_efs_mount_dir }}"
+    src: "{{ efs_ip[0][0] }}:/"
+    fstype: "nfs"
+    opts: "nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2"
+    state: mounted

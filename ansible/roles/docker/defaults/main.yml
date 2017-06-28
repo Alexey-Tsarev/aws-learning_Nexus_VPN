@@ -1,0 +1,2 @@
+#docker_root: /docker
+docker_root: /mnt/efs/docker

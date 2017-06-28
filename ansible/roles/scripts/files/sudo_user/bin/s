@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+
+sudo -i
+#sudo bash

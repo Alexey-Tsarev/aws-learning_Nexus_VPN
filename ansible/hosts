@@ -1,0 +1,8 @@
+[nexus]
+atsarev-nexus-test
+
+[openvpn]
+atsarev-openvpn-test
+
+[local]
+localhost

@@ -1,0 +1,5 @@
+openvpn_root: "{{ docker_root }}/openvpn"
+
+open_vpn_ca:
+  EASYRSA_BATCH: 1
+  EASYRSA_REQ_CN: MyCommonName

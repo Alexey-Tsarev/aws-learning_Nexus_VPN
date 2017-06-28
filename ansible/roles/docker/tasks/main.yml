@@ -1,0 +1,31 @@
+- name: Install Docker
+  package:
+    name: "docker"
+    state: latest
+  notify: Restart and enable Docker
+
+
+- name: Install docker-compose
+  pip:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - backports.ssl_match_hostname
+    - docker-compose
+
+
+- name: Create docker config directory
+  file: path=/etc/docker state=directory
+
+
+- name: Copy docker config
+  copy: src=daemon.json dest=/etc/docker
+  notify: Restart and enable Docker
+
+
+- name: Add the {{ sudo_user }} user to the docker group
+  user: name={{ sudo_user }} groups=docker append=yes
+  when: sudo_user is defined
+
+
+- meta: flush_handlers

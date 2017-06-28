@@ -1,0 +1,8 @@
+- hosts: all
+
+  roles:
+    - aws_route53
+    - aws_efs
+    - docker
+    - scripts
+    - nexus

@@ -1,0 +1,69 @@
+- name: Install jq
+  package:
+    name: jq
+    state: present
+
+
+- name: Take public IP output
+  shell: set -o pipefail && aws ec2 --region {{ ansible_ec2_placement_region }} describe-addresses | jq '.[] | .[] | .PublicIp' -r
+  register: public_ip
+  changed_when: false
+
+
+- name: Associate public IP with this instance
+  ec2_eip:
+    region: "{{ ansible_ec2_placement_region }}"
+    device_id: "{{ ansible_ec2_instance_id }}"
+    ip: "{{ public_ip.stdout }}"
+
+
+- name: Disable Source/Destination checks for this instance
+  ec2:
+    region: "{{ ansible_ec2_placement_region }}"
+    instance_ids: "{{ ansible_ec2_instance_id }}"
+    source_dest_check: no
+    state: running
+
+
+- name: Gather facts about all VPC route tables
+  ec2_vpc_route_table_facts:
+    region: "{{ ansible_ec2_placement_region }}"
+    filters:
+      "tag:Name": "{{ aws_vpn_route_tag_value }}"
+  register: rt_vpn
+
+
+- name: Setup NAT route table
+  ec2_vpc_route_table:
+    vpc_id: "{{ rt_vpn.route_tables[0].vpc_id }}"
+    region: "{{ ansible_ec2_placement_region }}"
+    tags:
+      Name: "{{ aws_vpn_route_tag_value }}"
+    routes:
+      - dest: 0.0.0.0/0
+        instance_id: "{{ ansible_ec2_instance_id }}"
+
+
+- name: Enable IP forward
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    sysctl_set: yes
+
+
+
+- name: MASQUERADE
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    jump: MASQUERADE
+
+
+- name: Save iptables rules
+  shell: iptables-save > /etc/sysconfig/iptables
+
+
+- name: Enable iptables service
+  service:
+    name: iptables
+    enabled: yes
